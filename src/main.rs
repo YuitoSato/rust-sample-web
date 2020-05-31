@@ -1,22 +1,24 @@
-use actix_web::{HttpServer, web};
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{App, HttpServer, web};
+use listenfd::ListenFd;
 
-async fn index() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
-}
-
-async fn index2() -> impl Responder {
-    HttpResponse::Ok().body("Hello world again!")
-}
+use rust_sample_web::interface::todo_controller;
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    let mut listenfd = ListenFd::from_env();
+    let mut server = HttpServer::new(|| {
         App::new()
-            .route("/", web::get().to(index))
-            .route("/again", web::get().to(index2))
-    })
-        .bind("127.0.0.1:8088")?
-        .run()
-        .await
+            .route("/", web::get().to(todo_controller::list))
+            .route("/todos", web::get().to(todo_controller::list))
+            .route("/todos/{id}", web::get().to(todo_controller::find))
+            .route("/todos", web::post().to(todo_controller::create))
+    });
+
+    server = if let Some(l) = listenfd.take_tcp_listener(0).unwrap() {
+        server.listen(l)?
+    } else {
+        server.bind("127.0.0.1:9000")?
+    };
+
+    server.run().await
 }
